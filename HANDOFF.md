@@ -133,15 +133,98 @@ acesso testado e confirmado.
 **✅ RESOLVIDO (15/07/2026)**: token do SendFlow no `.env` não precisa ser trocado — usuário
 confirmou que o atual está funcionando (não gerou um novo).
 
-## O que falta fazer (em ordem de prioridade)
+**✅ FEITO (16/07/2026) — Deploy completo**:
+- Repo criado em `github.com/trafego2-create/sendflow-leads-service` (público — o
+  `leads_preview.json` foi removido do histórico do git antes de tornar público, por ter
+  900 números de WhatsApp reais).
+- App `contagem-leads` criado no EasyPanel (projeto `typebot`), conectado ao repo via GitHub,
+  branch `main`, build automático via Dockerfile.
+- Domínio: `https://typebot-contagem-leads.e4wfok.easypanel.host` — atenção: o mapeamento de
+  porta precisou ser corrigido manualmente de 80 para **8000** (porta que o Uvicorn expõe) em
+  Domains → editar.
+- 10 variáveis de ambiente cadastradas no EasyPanel (as do `.env`, exceto as removidas — ver
+  abaixo).
+- Sendhook configurado no SendFlow apontando pra
+  `https://typebot-contagem-leads.e4wfok.easypanel.host/webhook/sendflow`, eventos: Membro
+  adicionado, Membro removido, Métricas da campanha.
+- Teste end-to-end confirmado: webhook responde 200 OK e grava no Supabase (teste gerou uma
+  linha fake `NÚMERO=0`, `ID=902` — **precisa ser apagada** antes do lançamento valer pra
+  contagem real, ver "Loose ends" abaixo).
 
-1. **Deploy**: usuário quer build automático via Git no EasyPanel. Ainda não foi feito
-   `git init` nem criado repositório. Passos: `git init` na pasta do projeto → criar repo no
-   GitHub → push → conectar no EasyPanel → configurar env vars lá (usando os mesmos valores do
-   `.env` local, MAS não commitar o `.env` em si) → apontar o sendhook do SendFlow pra nova URL
-   do webhook (`https://SEU-DOMINIO/webhook/sendflow`).
-2. Depois do deploy, testar end-to-end: enviar um teste pelo SendFlow sendhook e verificar que
-   cai no Supabase e na planilha.
+**✅ RESOLVIDO (16/07/2026) — poll_analytics removido**: o job que consultava
+`/sendapi/releases/{id}/analytics` a cada 2 min dava 403 Forbidden consistente (testado
+diretamente, não era rate limit nem configuração pendente do Sendhook). Descoberta: o n8n
+original nunca usou esse endpoint — só processava entrada/saída de membro via webhook, e o
+evento `campaign.metrics` (que dá TOTAL GRUPOS CHEIOS) já chega por **push** do próprio
+SendFlow nos horários configurados no Sendhook (ex: 7h/12h/17h), sem precisar de polling ativo.
+Removido: `app/sendflow_client.py`, a função `poll_analytics` em `logic.py`, e as env vars
+`SENDFLOW_BASE_URL`, `SENDFLOW_API_TOKEN`, `SENDFLOW_CAMPAIGN_ID`, `ADMIN_OFFSET`,
+`POLL_INTERVAL_MINUTES` (não são mais usadas pelo código). Commit `c43dcee`.
+
+**✅ FEITO (16/07/2026) — Linha de teste apagada**: `ID=902`, `NÚMERO=0` removida do Supabase.
+
+**✅ FEITO (16/07/2026) — Conferência de dados / reconciliação**: usuário exportou novo CSV do
+SendFlow (histórico até 16/07 11:06, 6.706 eventos) e enviou pra comparar com o Supabase.
+Processo (mesmo filtro `Grupo == "Projeto INSS #1"`, mesma lógica de `LEAD NÚMERO`/`LEAD ÚNICO`
+do backfill original):
+- CSV mostrou 945 números únicos que já entraram no grupo #1 em algum momento.
+- Supabase tinha só 920 (antes da reconciliação) — **45 leads reais estavam faltando**,
+  provavelmente do período de transição n8n→Python em que nem sempre havia captura funcionando.
+- Calculado `LEAD NÚMERO`/`LEAD ÚNICO`/`DATA1` pra esses 45 (a partir do histórico completo de
+  eventos de cada um, não só a última ocorrência) e inseridos no Supabase.
+- Estado final: **967 linhas, 920 com LEAD ÚNICO=1**.
+- Também calculada a tabela ENTRADAS/SAÍDAS/RELAÇÃO(E/S) por dia do grupo #1 (números únicos,
+  dedupe por dia) — entregue no chat pro usuário colar manualmente no Sheet (por decisão dele,
+  pra não arriscar mexer na automação). Confirmado que o "83 entradas/9 saídas" que aparecia no
+  Sheet pro dia 16/07 era o agregado bruto de todos os grupos (inclusive reserva/staff), não
+  filtrado — o número real do grupo #1 era 0 entradas/4 saídas nesse dia.
+- **Verificado duplicação n8n vs Python**: comparando `LEAD NÚMERO` calculado do CSV vs o que
+  estava no Supabase, **nenhum caso de duplicação/dobra** foi encontrado — os dados de lead em
+  si (tabela `PI_AGO_26`) estavam limpos. Achado, sim: 18 leads que já tinham saído do grupo
+  (segundo o CSV) mas o Supabase ainda mostrava `LEAD ÚNICO=1` (saída nunca processada, mesmo
+  período de transição). Corrigido: `LEAD NÚMERO=0`, `LEAD ÚNICO=0` pra esses 18.
+- Estado final pós-reconciliação: 968 linhas, contagem `LEAD ÚNICO=1` voltou a subir
+  organicamente (leads reais entrando em tempo real via webhook) — não fixar esse número no
+  handoff, sempre reconsultar o Supabase.
+
+**✅ FEITO (16/07/2026) — Conflito com n8n identificado e resolvido (planilha)**: mesmo com o
+Supabase limpo, a **planilha** (Sheets) continuava sendo sobrescrita porque o **workflow antigo
+do n8n continuava ativo em paralelo** (usuário mantinha ligado "pra não perder dado"):
+- Um node HTTP do n8n (`HTTP Request2`) chama exatamente `/sendapi/releases/{id}/analytics` —
+  a mesma rota que dava 403 no nosso Python — só que **funciona do servidor do n8n** (confirma
+  que o bloqueio da SendFlow é por IP, não pelo token). O resultado desse node alimentava
+  `TOTAL GRUPOS CHEIOS`/`TOTAL LEADS` na aba com a fórmula antiga (inflada), sobrescrevendo o
+  valor certo que a gente escrevia. **Usuário desativou esse node.**
+- Havia também outro mecanismo do n8n escrevendo/limpando a tabela `DATA2` (histórico diário
+  ENTRADAS/SAÍDAS) — linhas de julho sumiram e a de 29/05 voltou pro valor bruto (87/9/78) depois
+  que a gente já tinha escrito o valor certo. **Ainda não resolvido** — precisa confirmar que o
+  workflow inteiro do n8n está com o toggle "Active" desligado (não só nodes individuais) antes
+  de reescrever essa tabela de novo, senão apaga tudo outra vez.
+- **Descoberta sobre o design da planilha**: a célula `TOTAL LEADS` (linha 2) é o valor **bruto**
+  esperado por uma fórmula já existente na planilha, `TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs`
+  (linha 3). Reintroduzido `ADMIN_OFFSET=4794` (removido antes, agora com propósito diferente):
+  `handle_campaign_metrics` agora escreve `count_unique_leads() + ADMIN_OFFSET` em `TOTAL LEADS`,
+  pra fórmula da planilha calcular sozinha o `TOTAL LIMPO` certo. Commit a ser feito nesta sessão.
+
+## Loose ends / falta fazer
+
+1. **Redeploy pendente no EasyPanel** — o commit com a reintrodução do `ADMIN_OFFSET` (escrito
+   como bruto pra fórmula da planilha) precisa ser deployado manualmente (auto-deploy via push
+   não está configurado, sempre precisa clicar em Deploy no painel depois do push).
+2. **Confirmar que o workflow inteiro do n8n está desativado** (toggle "Active", não só nodes
+   individuais) antes de reescrever a tabela `DATA2` (histórico diário) de novo — ela continua
+   sendo sobrescrita/limpa por algo do n8n.
+3. Depois de confirmado, reescrever a tabela `DATA2` completa (todos os 25 dias já calculados,
+   de 29/05 a 16/07 — os valores estão no histórico desta conversa, ou recalculáveis do CSV em
+   `C:\Users\trafe\Downloads\SendFlow - Histórico de atividade - 16-07-2026,_11-06-04.csv`
+   filtrando `Grupo == "Projeto INSS #1"`, deduplicando por número por dia).
+4. Considerar remover as env vars não usadas (`SENDFLOW_BASE_URL`, `SENDFLOW_API_TOKEN`,
+   `SENDFLOW_CAMPAIGN_ID`, `POLL_INTERVAL_MINUTES`) do painel de Environment do EasyPanel — não
+   quebram nada ficando (pydantic ignora extras), é só limpeza. `ADMIN_OFFSET` voltou a ser usado,
+   não remover esse.
+5. Revogar/trocar tokens que foram colados em prints durante a sessão (GitHub PAT usado
+   temporariamente pra configurar o EasyPanel, se ainda existir; verificar em
+   `github.com/settings/tokens`).
 
 ## Prompt para continuar em outra sessão
 

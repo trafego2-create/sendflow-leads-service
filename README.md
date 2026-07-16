@@ -7,7 +7,7 @@ Reimplementação em Python do fluxo n8n de captação de leads (SendFlow → Su
 - **Webhook** (`POST /webhook/sendflow`): recebe os eventos do sendhook do SendFlow em tempo real.
   - `group.updated.members.added` → cria/atualiza o lead no Supabase
   - `group.updated.members.removed` → decrementa o contador do lead no Supabase
-  - `campaign.metrics` → atualiza a linha de totais (linha 2) da planilha na hora (o SendFlow envia esse evento por push nos horários configurados no Sendhook, ex: 7h/12h/17h)
+  - `campaign.metrics` → atualiza a linha de totais (linha 2) da planilha na hora (o SendFlow envia esse evento por push nos horários configurados no Sendhook, ex: 7h/12h/17h). `TOTAL LEADS` recebe o total limpo (Supabase, deduplicado) somado a `ADMIN_OFFSET`, porque a planilha já tem uma fórmula própria (`TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs`) que espera um valor bruto nessa célula.
 - **Append diário** (00:00 no fuso `TIMEZONE`): cria a linha do dia na planilha.
 
 Não há polling ativo na API do SendFlow — só processamos o que chega via webhook. Uma versão anterior tentava consultar `/sendapi/releases/{id}/analytics` a cada poucos minutos, mas esse endpoint retornava 403 com o token de API disponível (provavelmente só acessível pelo painel logado), e o n8n original também nunca usou essa rota.
@@ -47,4 +47,4 @@ uvicorn app.main:app --reload
 ## Trocar de lançamento
 
 Não precisa mexer em código — só trocar as env vars no EasyPanel:
-`SUPABASE_TABLE`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_NAME`, `WEBHOOK_PATH`.
+`SUPABASE_TABLE`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_NAME`, `WEBHOOK_PATH`, `ADMIN_OFFSET`.

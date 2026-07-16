@@ -49,10 +49,13 @@ async def handle_member_removed(data: dict) -> None:
 
 
 async def handle_campaign_metrics(data: dict) -> None:
+    # A célula TOTAL LEADS da planilha é o valor "bruto" que alimenta a fórmula
+    # TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs (já cadastrada na planilha), por
+    # isso somamos o admin_offset de volta ao total limpo antes de escrever.
     sheets_client.update_summary_row(
         {
             "TOTAL GRUPOS CHEIOS": data.get("groupsFullAmount"),
-            "TOTAL LEADS": supabase_client.count_unique_leads(),
+            "TOTAL LEADS": supabase_client.count_unique_leads() + settings.admin_offset,
         }
     )
 

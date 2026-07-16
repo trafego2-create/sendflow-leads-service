@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     google_sheet_id: str
     google_sheet_name: str = "LEAD TOTAL"
 
+    # Calibração (offset fixo somado ao TOTAL LEADS limpo antes de escrever na planilha,
+    # pra bater com a fórmula "TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs" que já existe lá)
+    admin_offset: int = 4794
+
     # Scheduler
     timezone: str = "America/Sao_Paulo"
 
