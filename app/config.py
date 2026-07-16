@@ -14,16 +14,7 @@ class Settings(BaseSettings):
     google_sheet_id: str
     google_sheet_name: str = "LEAD TOTAL"
 
-    # SendFlow
-    sendflow_base_url: str = "https://sendflow.pro"
-    sendflow_api_token: str
-    sendflow_campaign_id: str
-
-    # Calibração (admins que precisam ser descontados do total de grupos/leads)
-    admin_offset: int = 0
-
     # Scheduler
-    poll_interval_minutes: int = 2
     timezone: str = "America/Sao_Paulo"
 
     # Webhook

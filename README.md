@@ -7,15 +7,15 @@ Reimplementação em Python do fluxo n8n de captação de leads (SendFlow → Su
 - **Webhook** (`POST /webhook/sendflow`): recebe os eventos do sendhook do SendFlow em tempo real.
   - `group.updated.members.added` → cria/atualiza o lead no Supabase
   - `group.updated.members.removed` → decrementa o contador do lead no Supabase
-  - `campaign.metrics` → atualiza a linha de totais (linha 2) da planilha na hora
-- **Polling** (a cada `POLL_INTERVAL_MINUTES`, default 2 min): consulta `/sendapi/releases/{id}/analytics` do SendFlow (a única forma de pegar ENTRADAS/SAÍDAS por dia, essa API não tem push) e atualiza a planilha.
+  - `campaign.metrics` → atualiza a linha de totais (linha 2) da planilha na hora (o SendFlow envia esse evento por push nos horários configurados no Sendhook, ex: 7h/12h/17h)
 - **Append diário** (00:00 no fuso `TIMEZONE`): cria a linha do dia na planilha.
+
+Não há polling ativo na API do SendFlow — só processamos o que chega via webhook. Uma versão anterior tentava consultar `/sendapi/releases/{id}/analytics` a cada poucos minutos, mas esse endpoint retornava 403 com o token de API disponível (provavelmente só acessível pelo painel logado), e o n8n original também nunca usou essa rota.
 
 ## Diferenças em relação ao workflow n8n original
 
 - O update na planilha por `DATA` agora faz **upsert** (se a linha do dia não existir ainda, cria em vez de falhar) — isso corrige o bug do "Column to Match On" que estava derrubando o `Update row in sheet4`.
-- A cadeia de nodes vestigiais (`Get row(s) in sheet` → `Get many rows2` → `Code in JavaScript10` → `Edit Fields12` no evento `campaign.metrics`, e `Get row(s) in sheet7` → `Code in JavaScript1` no polling) foi removida — os valores finais gravados nunca dependiam desses nodes intermediários, só do payload do webhook / do resultado do HTTP Request.
-- `ADMIN_OFFSET` é configurável por variável de ambiente em vez de estar hardcoded na fórmula.
+- A cadeia de nodes vestigiais (`Get row(s) in sheet` → `Get many rows2` → `Code in JavaScript10` → `Edit Fields12` no evento `campaign.metrics`) foi removida — os valores finais gravados nunca dependiam desses nodes intermediários, só do payload do webhook.
 
 ## Setup local
 
@@ -47,4 +47,4 @@ uvicorn app.main:app --reload
 ## Trocar de lançamento
 
 Não precisa mexer em código — só trocar as env vars no EasyPanel:
-`SUPABASE_TABLE`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_NAME`, `SENDFLOW_CAMPAIGN_ID`, `SENDFLOW_API_TOKEN`, `WEBHOOK_PATH`, `ADMIN_OFFSET`.
+`SUPABASE_TABLE`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_NAME`, `WEBHOOK_PATH`.

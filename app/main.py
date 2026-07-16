@@ -17,22 +17,12 @@ scheduler = AsyncIOScheduler(timezone=settings.timezone)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.add_job(
-        logic.poll_analytics,
-        "interval",
-        minutes=settings.poll_interval_minutes,
-        id="poll_analytics",
-    )
-    scheduler.add_job(
         logic.daily_append,
         CronTrigger(hour=0, minute=0, timezone=settings.timezone),
         id="daily_append",
     )
     scheduler.start()
-    logger.info(
-        "scheduler iniciado: poll a cada %s min, append diário 00:00 (%s)",
-        settings.poll_interval_minutes,
-        settings.timezone,
-    )
+    logger.info("scheduler iniciado: append diário 00:00 (%s)", settings.timezone)
     yield
     scheduler.shutdown()
 
