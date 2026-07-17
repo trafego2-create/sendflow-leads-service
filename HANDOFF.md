@@ -255,25 +255,37 @@ que o webhook entrou no ar, inflando `LEAD ÚNICO=1` de ~945 pra 1211 em poucas 
   Estado limpo: 936 linhas, 868 `LEAD ÚNICO=1`. Commit `3ecb9d2`.
 - Script pra identificar admins num histórico novo (útil pra outros lançamentos) documentado no
   README, seção "Identificando números de admin/staff".
+- **✅ FEITO (17/07/2026) — env var trocada em produção e confirmada via log** (`evento
+  ignorado, número de admin: ...`), depois de duas tentativas (primeira vez o usuário esqueceu
+  de salvar a `ADMIN_NUMBERS`, app subiu normal mas sem filtro nenhum ativo — atenção: como essa
+  var tem default vazio, esquecer de configurá-la **não quebra o app**, só desativa o filtro
+  silenciosamente).
+
+**✅ FEITO (17/07/2026) — ENTRADAS/SAÍDAS em tempo real**: usuário perguntou por que a coluna
+não atualizava sozinha. Resposta: nada nunca escrevia lá automaticamente (nem o n8n fazia isso
+em tempo real — usava o mesmo polling de 15 min no `/analytics`). Implementado
+`sheets_client.increment_cell()`, chamado a cada `handle_member_added`/`handle_member_removed`
+bem-sucedido (depois do filtro de admin, depois do write no Supabase). Falha no Sheets é
+capturada e logada, nunca propagada — o Supabase (fonte de verdade) já está salvo nesse ponto, e
+deixar a exceção subir devolveria erro pro SendFlow, arriscando retry e contagem duplicada.
+Commit `b7973cf`. **Ainda NÃO deployado.**
 
 ## Loose ends / falta fazer
 
-1. **🔴 URGENTE — trocar `CAMPAIGN_GROUP_NAME` por `ADMIN_NUMBERS` nas env vars do EasyPanel e
-   dar deploy manual.** O código não usa mais `CAMPAIGN_GROUP_NAME` (pode remover essa var) —
-   precisa adicionar `ADMIN_NUMBERS` com a lista de 18 números acima (separados por vírgula, sem
-   espaço, sem aspas necessárias dessa vez). Até isso ser feito, o app em produção provavelmente
-   vai falhar ao subir (`CAMPAIGN_GROUP_NAME` não é mais um campo válido, mas isso não quebra —
-   é `ADMIN_NUMBERS` que precisa existir pro filtro funcionar; sem ela, `admin_numbers` fica
-   vazio por padrão e NADA é bloqueado, ou seja, volta a contaminar).
-2. Decisão do usuário (17/07/2026): **não tentar mais recuperar o histórico da tabela `DATA2`**
-   (ENTRADAS/SAÍDAS por dia, 29/05-16/07) — algo (provavelmente n8n, não totalmente identificado)
-   continua apagando linhas dessa tabela mesmo com o node `HTTP Request2` desativado. Decidido
-   seguir só a partir de `17/07/2026` em diante, sem investigar mais a causa raiz. Se quiser
-   retomar a investigação: comparar o histórico de versões do Google Sheets (Arquivo → Histórico
-   de versões) pra ver quem edita essa área.
+1. **Deploy pendente do commit `b7973cf`** (incremento de ENTRADAS/SAÍDAS em tempo real) —
+   precisa de deploy manual no EasyPanel pra entrar em produção. Não precisa de env var nova
+   (o `ADMIN_NUMBERS` da correção anterior já está configurado e confirmado funcionando).
+2. Considerar se o processo misterioso que ainda apaga linhas da tabela `DATA2` (mesmo depois de
+   desativar o node do n8n `HTTP Request2`) vai afetar os incrementos em tempo real também — se
+   uma linha for apagada no meio do dia, os incrementos seguintes recriam ela do zero (via
+   `append_row` dentro de `increment_cell`), perdendo a contagem acumulada até ali. Usuário já
+   decidiu (17/07/2026) não investigar a causa raiz por enquanto e seguir só a partir de
+   `17/07/2026` em diante — só mencionar se o problema aparecer de novo. Se quiser retomar a
+   investigação: comparar o histórico de versões do Google Sheets (Arquivo → Histórico de
+   versões) pra ver quem edita essa área.
 3. Considerar remover as env vars não usadas (`SENDFLOW_BASE_URL`, `SENDFLOW_API_TOKEN`,
-   `SENDFLOW_CAMPAIGN_ID`, `POLL_INTERVAL_MINUTES`) do painel de Environment do EasyPanel — não
-   quebram nada ficando (pydantic ignora extras), é só limpeza.
+   `SENDFLOW_CAMPAIGN_ID`, `POLL_INTERVAL_MINUTES`, `CAMPAIGN_GROUP_NAME`) do painel de
+   Environment do EasyPanel — não quebram nada ficando (pydantic ignora extras), é só limpeza.
 4. Revogar/trocar tokens que foram colados em prints durante a sessão (GitHub PAT usado
    temporariamente pra configurar o EasyPanel, se ainda existir; verificar em
    `github.com/settings/tokens`).
