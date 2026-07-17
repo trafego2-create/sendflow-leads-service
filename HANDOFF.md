@@ -214,7 +214,7 @@ do n8n continuava ativo em paralelo** (usuário mantinha ligado "pra não perder
   o `QTD. de ADMs` é só um valor fixo na própria planilha, célula L2, não precisa de env var).
   `LEADS NO DIA` continua recebendo o total **limpo** (Supabase, deduplicado) — diferente do
   n8n original, que também jogava o bruto ali; decisão deliberada, mantendo o número real de
-  movimentação sem admin misturado. Commit `[fazer]`.
+  movimentação sem admin misturado. Commit `a6fddd6`.
 - Também corrigido: nada atualizava `LEADS NO DIA` automaticamente antes — agora
   `handle_campaign_metrics` faz upsert nessa linha a cada push, e `daily_append` (meia-noite)
   cria a linha do dia seguinte, congelando o valor final do dia anterior.
