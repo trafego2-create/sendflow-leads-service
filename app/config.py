@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     google_sheet_id: str
     google_sheet_name: str = "LEAD TOTAL"
 
+    # Nome exato do grupo real de captação (os demais são reserva/staff e devem
+    # ser ignorados nos eventos de membro adicionado/removido)
+    campaign_group_name: str
+
     # Scheduler
     timezone: str = "America/Sao_Paulo"
 
