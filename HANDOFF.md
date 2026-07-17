@@ -218,24 +218,43 @@ do n8n continuava ativo em paralelo** (usuário mantinha ligado "pra não perder
 - Também corrigido: nada atualizava `LEADS NO DIA` automaticamente antes — agora
   `handle_campaign_metrics` faz upsert nessa linha a cada push, e `daily_append` (meia-noite)
   cria a linha do dia seguinte, congelando o valor final do dia anterior.
+- **✅ Deploy no EasyPanel feito** pelo usuário depois de cada um dos commits acima
+  (`c15839b`, `a6fddd6`, `fdc260b`) — confirmado via `/healthz` e via observação direta dos logs
+  (scheduler sem `poll_analytics`, só `daily_append`).
+
+**🔴 BUG SÉRIO encontrado e corrigido (17/07/2026) — contaminação por grupo errado**: usuário
+mandou um segundo JSON do n8n (campanha PBB-JUN-26, "que estava funcionando") pra comparar, e ao
+investigar uma pergunta dele sobre ENTRADAS/SAÍDAS em tempo real, percebi que
+`handle_member_added`/`handle_member_removed` **nunca filtravam por grupo** — processavam
+qualquer evento (`group.updated.members.added/removed`) que chegasse, inclusive dos 282 grupos
+de reserva/staff, não só do `Projeto INSS #1`. Confirmado: **352 registros contaminados** no
+Supabase (343 de `Projeto INSS #3`, 9 sem grupo), **todos de 16-17/07** — ou seja, ativo desde
+que o webhook entrou no ar, inflando `LEAD ÚNICO=1` de ~945 pra 1211 em poucas horas.
+- Corrigido: nova env var `CAMPAIGN_GROUP_NAME` (nesse lançamento = `Projeto INSS #1`); eventos
+  de qualquer outro grupo são ignorados (log + return, sem gravar nada).
+- **Atenção**: o valor tem `#` no meio (`Projeto INSS #1`), e arquivos `.env` tratam `#` como
+  início de comentário — **precisa estar entre aspas** (`CAMPAIGN_GROUP_NAME="Projeto INSS #1"`)
+  senão o valor é truncado silenciosamente pra `Projeto INSS`. Isso vale tanto pro `.env` local
+  quanto pro campo de Environment Variables do EasyPanel (mesma sintaxe de arquivo `.env`).
+- Registros contaminados já apagados do Supabase. Estado limpo: 945 linhas, 877 `LEAD ÚNICO=1`.
+- Commit `c27cb1b`. **Ainda NÃO deployado** — precisa adicionar `CAMPAIGN_GROUP_NAME="Projeto
+  INSS #1"` nas env vars do EasyPanel E dar deploy manual antes disso valer em produção.
 
 ## Loose ends / falta fazer
 
-1. **Redeploy pendente no EasyPanel** — o commit com a reintrodução do `ADMIN_OFFSET` (escrito
-   como bruto pra fórmula da planilha) precisa ser deployado manualmente (auto-deploy via push
-   não está configurado, sempre precisa clicar em Deploy no painel depois do push).
-2. **Confirmar que o workflow inteiro do n8n está desativado** (toggle "Active", não só nodes
-   individuais) antes de reescrever a tabela `DATA2` (histórico diário) de novo — ela continua
-   sendo sobrescrita/limpa por algo do n8n.
-3. Depois de confirmado, reescrever a tabela `DATA2` completa (todos os 25 dias já calculados,
-   de 29/05 a 16/07 — os valores estão no histórico desta conversa, ou recalculáveis do CSV em
-   `C:\Users\trafe\Downloads\SendFlow - Histórico de atividade - 16-07-2026,_11-06-04.csv`
-   filtrando `Grupo == "Projeto INSS #1"`, deduplicando por número por dia).
-4. Considerar remover as env vars não usadas (`SENDFLOW_BASE_URL`, `SENDFLOW_API_TOKEN`,
+1. **🔴 URGENTE — adicionar `CAMPAIGN_GROUP_NAME="Projeto INSS #1"` (com aspas!) nas env vars
+   do EasyPanel e dar deploy manual.** Até isso ser feito, o webhook em produção continua sem
+   filtro de grupo, contaminando o Supabase de novo a cada evento de grupo de reserva.
+2. Decisão do usuário (17/07/2026): **não tentar mais recuperar o histórico da tabela `DATA2`**
+   (ENTRADAS/SAÍDAS por dia, 29/05-16/07) — algo (provavelmente n8n, não totalmente identificado)
+   continua apagando linhas dessa tabela mesmo com o node `HTTP Request2` desativado. Decidido
+   seguir só a partir de `17/07/2026` em diante, sem investigar mais a causa raiz. Se quiser
+   retomar a investigação: comparar o histórico de versões do Google Sheets (Arquivo → Histórico
+   de versões) pra ver quem edita essa área.
+3. Considerar remover as env vars não usadas (`SENDFLOW_BASE_URL`, `SENDFLOW_API_TOKEN`,
    `SENDFLOW_CAMPAIGN_ID`, `POLL_INTERVAL_MINUTES`) do painel de Environment do EasyPanel — não
-   quebram nada ficando (pydantic ignora extras), é só limpeza. `ADMIN_OFFSET` voltou a ser usado,
-   não remover esse.
-5. Revogar/trocar tokens que foram colados em prints durante a sessão (GitHub PAT usado
+   quebram nada ficando (pydantic ignora extras), é só limpeza.
+4. Revogar/trocar tokens que foram colados em prints durante a sessão (GitHub PAT usado
    temporariamente pra configurar o EasyPanel, se ainda existir; verificar em
    `github.com/settings/tokens`).
 
