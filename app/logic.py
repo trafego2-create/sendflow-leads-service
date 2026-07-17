@@ -49,20 +49,21 @@ async def handle_member_removed(data: dict) -> None:
 
 
 async def handle_campaign_metrics(data: dict) -> None:
-    total_leads_limpo = supabase_client.count_unique_leads()
-    # A célula TOTAL LEADS da planilha é o valor "bruto" que alimenta a fórmula
-    # TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs (já cadastrada na planilha), por
-    # isso somamos o admin_offset de volta ao total limpo antes de escrever.
+    # TOTAL LEADS é o valor bruto (participantsAmount, direto do SendFlow) que
+    # alimenta a fórmula já existente na planilha TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs.
     sheets_client.update_summary_row(
         {
             "TOTAL GRUPOS CHEIOS": data.get("groupsFullAmount"),
-            "TOTAL LEADS": total_leads_limpo + settings.admin_offset,
+            "TOTAL LEADS": data.get("participantsAmount"),
         }
     )
-    # Atualiza a linha do dia atual na tabela DATA/LEADS NO DIA a cada push de
-    # métricas; a linha fica congelada com o valor final assim que o daily_append
-    # cria a linha do próximo dia à meia-noite.
-    sheets_client.upsert_row("DATA", today_str(), {"LEADS NO DIA": total_leads_limpo})
+    # LEADS NO DIA fica com o total limpo (Supabase, deduplicado) — diferente do
+    # bruto acima, porque é o número que representa a movimentação real de leads.
+    # Atualiza a linha do dia atual a cada push de métricas; a linha fica congelada
+    # com o valor final assim que o daily_append cria a linha do próximo dia.
+    sheets_client.upsert_row(
+        "DATA", today_str(), {"LEADS NO DIA": supabase_client.count_unique_leads()}
+    )
 
 
 async def daily_append() -> None:

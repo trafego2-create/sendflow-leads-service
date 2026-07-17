@@ -202,9 +202,22 @@ do n8n continuava ativo em paralelo** (usuário mantinha ligado "pra não perder
   de reescrever essa tabela de novo, senão apaga tudo outra vez.
 - **Descoberta sobre o design da planilha**: a célula `TOTAL LEADS` (linha 2) é o valor **bruto**
   esperado por uma fórmula já existente na planilha, `TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs`
-  (linha 3). Reintroduzido `ADMIN_OFFSET=4794` (removido antes, agora com propósito diferente):
-  `handle_campaign_metrics` agora escreve `count_unique_leads() + ADMIN_OFFSET` em `TOTAL LEADS`,
-  pra fórmula da planilha calcular sozinha o `TOTAL LIMPO` certo. Commit a ser feito nesta sessão.
+  (linha 3). Primeira tentativa: reintroduzir `ADMIN_OFFSET=4794` e escrever
+  `count_unique_leads() + ADMIN_OFFSET` (commit `c15839b`) — funcionou, mas é um número
+  sintético que pode desatualizar.
+- **✅ FEITO (17/07/2026) — Corrigido pra bater com o n8n original**: usuário mandou o JSON do
+  workflow n8n "base" (campanha antiga PES-MAI-26) pra comparar. Achado: o node
+  `Update row in sheet7` do n8n sempre escreveu `TOTAL LEADS = body.data.participantsAmount`
+  (o valor bruto **real**, direto do payload do SendFlow) — não um offset sintético. Corrigido:
+  `handle_campaign_metrics` agora usa `data.get("participantsAmount")` direto (igual ao n8n
+  original), removido `ADMIN_OFFSET`/`admin_offset` de novo do código (não é mais necessário —
+  o `QTD. de ADMs` é só um valor fixo na própria planilha, célula L2, não precisa de env var).
+  `LEADS NO DIA` continua recebendo o total **limpo** (Supabase, deduplicado) — diferente do
+  n8n original, que também jogava o bruto ali; decisão deliberada, mantendo o número real de
+  movimentação sem admin misturado. Commit `[fazer]`.
+- Também corrigido: nada atualizava `LEADS NO DIA` automaticamente antes — agora
+  `handle_campaign_metrics` faz upsert nessa linha a cada push, e `daily_append` (meia-noite)
+  cria a linha do dia seguinte, congelando o valor final do dia anterior.
 
 ## Loose ends / falta fazer
 
