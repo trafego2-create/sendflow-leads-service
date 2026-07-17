@@ -19,8 +19,8 @@ def today_str() -> str:
 async def handle_member_added(data: dict) -> None:
     numero = data["number"]
     grupo = data.get("groupName", "")
-    if grupo != settings.campaign_group_name:
-        logger.info("evento ignorado, grupo fora da campanha: %s", grupo)
+    if numero in settings.admin_numbers_set:
+        logger.info("evento ignorado, número de admin: %s", numero)
         return
     existing = supabase_client.get_lead(numero)
     if existing:
@@ -40,9 +40,8 @@ async def handle_member_added(data: dict) -> None:
 
 async def handle_member_removed(data: dict) -> None:
     numero = data["number"]
-    grupo = data.get("groupName", "")
-    if grupo != settings.campaign_group_name:
-        logger.info("evento ignorado, grupo fora da campanha: %s", grupo)
+    if numero in settings.admin_numbers_set:
+        logger.info("evento ignorado, número de admin: %s", numero)
         return
     existing = supabase_client.get_lead(numero)
     if not existing:

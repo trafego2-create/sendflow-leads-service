@@ -14,9 +14,15 @@ class Settings(BaseSettings):
     google_sheet_id: str
     google_sheet_name: str = "LEAD TOTAL"
 
-    # Nome exato do grupo real de captação (os demais são reserva/staff e devem
-    # ser ignorados nos eventos de membro adicionado/removido)
-    campaign_group_name: str
+    # Números de telefone de admin/staff (separados por vírgula) — eventos de
+    # membro adicionado/removido vindos desses números são ignorados. Identificados
+    # analisando o histórico real: aparecem em dezenas/centenas de grupos diferentes,
+    # ao contrário de um lead real (que só passa por 1 grupo).
+    admin_numbers: str = ""
+
+    @property
+    def admin_numbers_set(self) -> set[str]:
+        return {n.strip() for n in self.admin_numbers.split(",") if n.strip()}
 
     # Scheduler
     timezone: str = "America/Sao_Paulo"

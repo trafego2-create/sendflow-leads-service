@@ -5,8 +5,9 @@ Reimplementação em Python do fluxo n8n de captação de leads (SendFlow → Su
 ## O que faz
 
 - **Webhook** (`POST /webhook/sendflow`): recebe os eventos do sendhook do SendFlow em tempo real.
-  - `group.updated.members.added` → cria/atualiza o lead no Supabase
-  - `group.updated.members.removed` → decrementa o contador do lead no Supabase
+  - `group.updated.members.added` → cria/atualiza o lead no Supabase (qualquer grupo conta,
+    exceto números listados em `ADMIN_NUMBERS`)
+  - `group.updated.members.removed` → decrementa o contador do lead no Supabase (mesmo filtro)
   - `campaign.metrics` → atualiza a linha de totais (linha 2) da planilha na hora (o SendFlow envia esse evento por push nos horários configurados no Sendhook, ex: 7h/12h/17h). `TOTAL LEADS` recebe `participantsAmount` (bruto, direto do payload do SendFlow — igual ao workflow n8n original), porque a planilha já tem uma fórmula própria (`TOTAL LIMPO = TOTAL LEADS - QTD. de ADMs`) que espera um valor bruto nessa célula. `LEADS NO DIA` (tabela `DATA`/`LEADS NO DIA`) recebe o total limpo (Supabase, deduplicado) — esse sim é atualizado a cada push e representa a movimentação real.
 - **Append diário** (00:00 no fuso `TIMEZONE`): cria a linha do dia na planilha.
 
@@ -47,6 +48,35 @@ uvicorn app.main:app --reload
 ## Trocar de lançamento
 
 Não precisa mexer em código — só trocar as env vars no EasyPanel:
-`SUPABASE_TABLE`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_NAME`, `WEBHOOK_PATH`. O `QTD. de ADMs`
-usado na fórmula `TOTAL LIMPO` é um valor direto na planilha (célula L2), não uma env var —
-ajuste lá se o número de admins/grupos mudar de lançamento pra lançamento.
+`SUPABASE_TABLE`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_NAME`, `WEBHOOK_PATH`, `ADMIN_NUMBERS`
+(os números de admin/staff mudam de lançamento pra lançamento — identifique olhando quais
+números aparecem em dezenas/centenas de grupos diferentes no histórico de atividade do SendFlow).
+O `QTD. de ADMs` usado na fórmula `TOTAL LIMPO` é um valor direto na planilha (célula L2), não
+uma env var — ajuste lá se o número de admins/grupos mudar de lançamento pra lançamento.
+
+## Identificando números de admin/staff
+
+Como a campanha rotaciona automaticamente pro próximo grupo (`#1` → `#2` → `#3`...) conforme
+cada um enche, o filtro **não é por nome de grupo** — é por número de telefone. Pra identificar
+quais números são admin/staff (não leads reais) num histórico de atividade novo, exporte o CSV
+do SendFlow e rode algo assim:
+
+```python
+import csv
+from collections import defaultdict
+
+grupos_por_numero = defaultdict(set)
+with open("historico.csv", encoding="utf-8-sig") as f:
+    reader = csv.reader(f, delimiter=";")
+    next(reader)
+    for r in reader:
+        numero, grupo = r[1].lstrip("'"), r[2]
+        grupos_por_numero[numero].add(grupo)
+
+for numero, grupos in sorted(grupos_por_numero.items(), key=lambda x: -len(x[1]))[:30]:
+    print(numero, len(grupos))
+```
+
+Números de admin aparecem em dezenas/centenas de grupos distintos; leads reais só em 1
+(o grupo que estava ativo no momento em que entraram). Normalmente há um corte bem claro entre
+os dois grupos.
