@@ -16,6 +16,16 @@ def today_str() -> str:
     return datetime.now(_tz()).strftime("%d/%m/%Y")
 
 
+def _incrementar_planilha_com_seguranca(campo: str) -> None:
+    # Nunca deixa uma falha na planilha (ex: cota da API do Sheets) derrubar o
+    # processamento do webhook — o Supabase já foi atualizado, isso aqui é só
+    # um reflexo pra visualização, não pode causar retry/duplicação no SendFlow.
+    try:
+        sheets_client.increment_cell("DATA2", today_str(), campo)
+    except Exception:
+        logger.exception("falha ao incrementar %s na planilha", campo)
+
+
 async def handle_member_added(data: dict) -> None:
     numero = data["number"]
     grupo = data.get("groupName", "")
@@ -36,6 +46,7 @@ async def handle_member_added(data: dict) -> None:
                 "NÚMERO": numero,
             }
         )
+    _incrementar_planilha_com_seguranca("ENTRADAS")
 
 
 async def handle_member_removed(data: dict) -> None:
@@ -52,6 +63,7 @@ async def handle_member_removed(data: dict) -> None:
     supabase_client.update_lead(
         numero, {"LEAD NÚMERO": novo_lead_numero, "LEAD ÚNICO": lead_unico}
     )
+    _incrementar_planilha_com_seguranca("SAÍDAS")
 
 
 async def handle_campaign_metrics(data: dict) -> None:

@@ -86,6 +86,26 @@ def upsert_row(match_column: str, match_value: str, values: dict) -> None:
         append_row(full_values)
 
 
+def increment_cell(match_column: str, match_value: str, field: str, delta: int = 1) -> None:
+    """Soma delta ao valor atual de field na linha onde match_column == match_value,
+    criando a linha se não existir ainda."""
+    headers = _get_headers()
+    row_index = find_row_index(match_column, match_value)
+    if row_index:
+        col_letter = _col_letter(headers.index(field) + 1)
+        current = (
+            _service.spreadsheets()
+            .values()
+            .get(spreadsheetId=_sheet_id, range=f"'{_sheet_name}'!{col_letter}{row_index}")
+            .execute()
+            .get("values", [])
+        )
+        atual = int(current[0][0]) if current and current[0] and current[0][0] else 0
+        update_row(row_index, {field: atual + delta})
+    else:
+        append_row({match_column: match_value, field: delta})
+
+
 def update_summary_row(values: dict) -> None:
     """Atualiza a linha fixa de totais (linha 2 da planilha, equivalente ao row_number=2 do n8n)."""
     update_row(2, values)
