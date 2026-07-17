@@ -230,21 +230,41 @@ qualquer evento (`group.updated.members.added/removed`) que chegasse, inclusive 
 de reserva/staff, não só do `Projeto INSS #1`. Confirmado: **352 registros contaminados** no
 Supabase (343 de `Projeto INSS #3`, 9 sem grupo), **todos de 16-17/07** — ou seja, ativo desde
 que o webhook entrou no ar, inflando `LEAD ÚNICO=1` de ~945 pra 1211 em poucas horas.
-- Corrigido: nova env var `CAMPAIGN_GROUP_NAME` (nesse lançamento = `Projeto INSS #1`); eventos
-  de qualquer outro grupo são ignorados (log + return, sem gravar nada).
-- **Atenção**: o valor tem `#` no meio (`Projeto INSS #1`), e arquivos `.env` tratam `#` como
-  início de comentário — **precisa estar entre aspas** (`CAMPAIGN_GROUP_NAME="Projeto INSS #1"`)
-  senão o valor é truncado silenciosamente pra `Projeto INSS`. Isso vale tanto pro `.env` local
-  quanto pro campo de Environment Variables do EasyPanel (mesma sintaxe de arquivo `.env`).
-- Registros contaminados já apagados do Supabase. Estado limpo: 945 linhas, 877 `LEAD ÚNICO=1`.
-- Commit `c27cb1b`. **Ainda NÃO deployado** — precisa adicionar `CAMPAIGN_GROUP_NAME="Projeto
-  INSS #1"` nas env vars do EasyPanel E dar deploy manual antes disso valer em produção.
+- Corrigido (v1): nova env var `CAMPAIGN_GROUP_NAME="Projeto INSS #1"` (com aspas, por causa do
+  `#` sendo interpretado como comentário em `.env`). Commit `c27cb1b`, deployado e confirmado
+  funcionando via log (`evento ignorado, grupo fora da campanha: Projeto INSS #3`).
+- **⚠️ v1 ficou obsoleta rápido**: usuário perguntou o que acontece quando o grupo `#1` enche —
+  a campanha **rotaciona automaticamente pro próximo grupo disponível** (`#1` → `#2` → `#3`...,
+  confirmado pelo usuário). Um filtro fixo por nome de grupo descartaria leads reais assim que a
+  rotação acontecesse. Usuário pediu solução automática, sem precisar de atualização manual.
+- **✅ v2 (definitiva) — filtro por número de admin, não por grupo**: analisado o histórico real
+  (CSV) contando em quantos grupos distintos cada número aparece — corte estatístico bem claro
+  em 18 números que aparecem em 66-281 grupos diferentes (comportamento de teste/automação), o
+  resto aparece em no máximo 4. Esses 18 são os admins/staff reais (bate a ideia do antigo
+  `ADMIN_OFFSET`, que assumia 17 — a conta certa é 18):
+  ```
+  5516991081133, 5516994054610, 5516991876538, 5516994602791, 5516991628640,
+  5516992243112, 5516992352349, 5516997384603, 5516992314699, 5516992162853,
+  5516992932850, 5516993910017, 5516994109615, 5516991262116, 5516992580599,
+  5516993966587, 5516993678375, 5516997353630
+  ```
+  Nova env var `ADMIN_NUMBERS` (lista separada por vírgula, sem `#` então sem problema de
+  aspas). `CAMPAIGN_GROUP_NAME` foi **removida** do código — agora QUALQUER grupo conta, exceto
+  eventos vindos desses números. 16 desses 18 admins já estavam contaminando o Supabase desde o
+  backfill original (também passam brevemente pelo grupo #1 durante os testes deles) — apagados.
+  Estado limpo: 936 linhas, 868 `LEAD ÚNICO=1`. Commit `3ecb9d2`.
+- Script pra identificar admins num histórico novo (útil pra outros lançamentos) documentado no
+  README, seção "Identificando números de admin/staff".
 
 ## Loose ends / falta fazer
 
-1. **🔴 URGENTE — adicionar `CAMPAIGN_GROUP_NAME="Projeto INSS #1"` (com aspas!) nas env vars
-   do EasyPanel e dar deploy manual.** Até isso ser feito, o webhook em produção continua sem
-   filtro de grupo, contaminando o Supabase de novo a cada evento de grupo de reserva.
+1. **🔴 URGENTE — trocar `CAMPAIGN_GROUP_NAME` por `ADMIN_NUMBERS` nas env vars do EasyPanel e
+   dar deploy manual.** O código não usa mais `CAMPAIGN_GROUP_NAME` (pode remover essa var) —
+   precisa adicionar `ADMIN_NUMBERS` com a lista de 18 números acima (separados por vírgula, sem
+   espaço, sem aspas necessárias dessa vez). Até isso ser feito, o app em produção provavelmente
+   vai falhar ao subir (`CAMPAIGN_GROUP_NAME` não é mais um campo válido, mas isso não quebra —
+   é `ADMIN_NUMBERS` que precisa existir pro filtro funcionar; sem ela, `admin_numbers` fica
+   vazio por padrão e NADA é bloqueado, ou seja, volta a contaminar).
 2. Decisão do usuário (17/07/2026): **não tentar mais recuperar o histórico da tabela `DATA2`**
    (ENTRADAS/SAÍDAS por dia, 29/05-16/07) — algo (provavelmente n8n, não totalmente identificado)
    continua apagando linhas dessa tabela mesmo com o node `HTTP Request2` desativado. Decidido
