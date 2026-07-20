@@ -79,7 +79,14 @@ viram a lista de `ADMIN_NUMBERS`.
 **Atenção**: espere ter volume real de dados antes de fazer essa análise (nos primeiros dias,
 com poucos eventos, o corte estatístico pode não ficar claro ainda).
 
-## Passo 4 — Criar o serviço no EasyPanel
+## Passo 4 — Criar (ou reaproveitar) o serviço no EasyPanel
+
+**Só precisa criar um app novo se esse lançamento vai rodar AO MESMO TEMPO que outro já ativo**
+(cada um precisa da própria URL de webhook). Se o lançamento anterior já encerrou, reaproveita o
+mesmo app: só troca as env vars do Passo 3/anteriores e clica em Deploy — pula pro final desse
+passo.
+
+Pra criar um app novo:
 
 1. No EasyPanel, **+ Service → App** → aba **Github** → Owner `trafego2-create`, Repository
    `sendflow-leads-service`, Branch `main`, Build Path `/` (mesmo repositório de sempre, ele é
