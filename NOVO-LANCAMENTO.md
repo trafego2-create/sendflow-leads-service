@@ -3,6 +3,19 @@
 Esse serviço (`contagem-leads` no EasyPanel) é genérico — a mesma imagem/código serve
 qualquer lançamento, só trocando dados de configuração. Não precisa mexer em código nenhuma vez.
 
+## Sobre VIP e lançamentos simultâneos
+
+- **VIP é tratado como se fosse "mais um lançamento"**: é uma campanha separada dentro do
+  SendFlow, referente ao mesmo lançamento, mas configurada como uma instância independente desse
+  serviço (app próprio no EasyPanel, próprio Sendhook/webhook, própria tabela no Supabase — ex:
+  `PI_AGO_26_VIP`). A diferença é que ele escreve na **mesma planilha** do lançamento normal,
+  só que numa **aba diferente** — isso já é suportado só trocando `GOOGLE_SHEET_NAME` (mantém o
+  mesmo `GOOGLE_SHEET_ID` do lançamento principal, mas aponta pro nome da aba VIP).
+- **Pode ter mais de um lançamento rodando no mesmo mês** (captação normal + VIP de um
+  lançamento, e possivelmente outro lançamento inteiro em paralelo). Cada combinação
+  campanha×lançamento ativa ao mesmo tempo precisa do seu próprio app no EasyPanel (ver Passo 4).
+  Nenhuma mudança de código é necessária — é só repetir esse guia pra cada um.
+
 ## Checklist do que você precisa ter em mãos
 
 Antes de começar, tenha isso preparado:
@@ -152,10 +165,14 @@ Lê também o HANDOFF.md pra contexto histórico do projeto (bugs já corrigidos
 design, por que as coisas são do jeito que são).
 
 Dados desse lançamento novo:
+- É captação normal ou VIP? <<preencher>> (se VIP, usa o mesmo GOOGLE_SHEET_ID do lançamento
+  normal correspondente, só muda a aba/GOOGLE_SHEET_NAME e a tabela do Supabase)
 - Nome/tabela Supabase: <<preencher>>
 - ID da planilha Google Sheets: <<preencher>>
+- Nome da aba dentro da planilha: <<preencher, ex: "LEAD TOTAL" ou a aba VIP>>
 - Nome do grupo real de captação no SendFlow: <<preencher>>
 - ID da campanha no SendFlow: <<preencher>>
+- Vai rodar ao mesmo tempo que outro lançamento/campanha já ativo? <<sim/não>>
 - CSV de histórico de atividade (pra identificar admins), se já tiver: <<caminho ou "ainda não
   tenho, preciso exportar primeiro">>
 

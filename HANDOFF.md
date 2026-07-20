@@ -20,6 +20,12 @@ planilha do Google Sheets (visualização/relatório pra equipe).
 **Substituiu uma automação em n8n** que tinha vários bugs (detalhes na seção de histórico, no
 fim deste arquivo) e que ainda pode estar rodando em paralelo — ver seção "n8n" abaixo.
 
+**Pode ter vários lançamentos/campanhas rodando ao mesmo tempo** (inclusive campanhas VIP, que
+são uma campanha separada no SendFlow referente ao mesmo lançamento, escrevendo na mesma
+planilha só que numa aba diferente). Cada combinação ativa ao mesmo tempo = uma instância
+separada desse serviço (app próprio no EasyPanel). Ver `NOVO-LANCAMENTO.md` pra configurar uma
+nova.
+
 ## Arquitetura atual
 
 ```
