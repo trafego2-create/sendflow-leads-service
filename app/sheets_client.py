@@ -65,16 +65,25 @@ def update_row(row_index: int, values: dict) -> None:
     _service.spreadsheets().values().batchUpdate(spreadsheetId=_sheet_id, body=body).execute()
 
 
-def append_row(values: dict) -> None:
+def _next_row_index(match_column: str) -> int:
     headers = _get_headers()
-    row = [values.get(h, "") for h in headers]
-    _service.spreadsheets().values().append(
-        spreadsheetId=_sheet_id,
-        range=f"'{_sheet_name}'!A1",
-        valueInputOption="USER_ENTERED",
-        insertDataOption="INSERT_ROWS",
-        body={"values": [row]},
-    ).execute()
+    col_letter = _col_letter(headers.index(match_column) + 1)
+    result = (
+        _service.spreadsheets()
+        .values()
+        .get(spreadsheetId=_sheet_id, range=f"'{_sheet_name}'!{col_letter}2:{col_letter}")
+        .execute()
+    )
+    return len(result.get("values", [])) + 2  # +1 pelo header, +1 porque é 1-based
+
+
+def append_row(values: dict, match_column: str) -> None:
+    # Escreve só nas células de 'values' (via update_row), na próxima linha vazia
+    # de match_column. Não usa a API de append com INSERT_ROWS: isso insere uma
+    # linha de verdade na planilha, empurrando pra baixo qualquer conteúdo que já
+    # estivesse na linha seguinte (ex: fórmulas manuais como o "TOTAL LIMPO"),
+    # deslocando o bloco de totais um pouco mais a cada dia.
+    update_row(_next_row_index(match_column), values)
 
 
 def upsert_row(match_column: str, match_value: str, values: dict) -> None:
@@ -83,7 +92,7 @@ def upsert_row(match_column: str, match_value: str, values: dict) -> None:
         update_row(row_index, values)
     else:
         full_values = {match_column: match_value, **values}
-        append_row(full_values)
+        append_row(full_values, match_column)
 
 
 def increment_cell(match_column: str, match_value: str, field: str, delta: int = 1) -> None:
@@ -103,7 +112,7 @@ def increment_cell(match_column: str, match_value: str, field: str, delta: int =
         atual = int(current[0][0]) if current and current[0] and current[0][0] else 0
         update_row(row_index, {field: atual + delta})
     else:
-        append_row({match_column: match_value, field: delta})
+        append_row({match_column: match_value, field: delta}, match_column)
 
 
 def update_summary_row(values: dict) -> None:

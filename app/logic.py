@@ -86,4 +86,4 @@ async def handle_campaign_metrics(data: dict) -> None:
 
 async def daily_append() -> None:
     hoje = today_str()
-    sheets_client.append_row({"DATA2": hoje, "DATA": hoje})
+    sheets_client.append_row({"DATA2": hoje, "DATA": hoje}, "DATA2")
